@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tebak Judul</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --velvet:#2A0A18; --seat:#43122A; --seat-line:#5E2040; --felt:#141114;
+    --letter:#F3EEE4; --bulb:#FFC94A; --ticket:#FF8FA3; --good:#7BE0A6; --muted:#C9A9B8;
+    --display:'Bungee', system-ui, sans-serif;
+    --board:'Barlow Condensed', 'Arial Narrow', sans-serif;
+    --body:'Barlow', system-ui, sans-serif;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; min-height:100vh; color:var(--letter); font:17px/1.5 var(--body);
+    background:
+      repeating-linear-gradient(90deg, rgba(0,0,0,.18) 0 2px, transparent 2px 46px),
+      radial-gradient(ellipse at 50% -10%, #5A1631 0%, var(--velvet) 60%);
+    background-color:var(--velvet);
+  }
+  main { max-width:1040px; margin:0 auto; padding:24px 16px 40px; }
+  h2 { font:600 1.05rem/1.3 var(--body); margin:0 0 12px; color:var(--muted); }
+  .muted { color:var(--muted); }
+  [hidden] { display:none !important; }
+
+  input, select, button { font:inherit; color:inherit; border-radius:10px; }
+  input, select { width:100%; padding:12px 14px; background:var(--felt); border:1px solid var(--seat-line); }
+  input::placeholder { color:#8E7381; }
+  button { padding:12px 20px; border:0; background:var(--bulb); color:#2A0A18; font-weight:600; cursor:pointer; white-space:nowrap; }
+  button:hover:not(:disabled) { filter:brightness(1.08); }
+  button:disabled { opacity:.35; cursor:not-allowed; }
+  :focus-visible { outline:3px solid var(--bulb); outline-offset:2px; }
+
+  /* ---------- Entry: marquee sign + ticket ---------- */
+  #join { max-width:520px; margin:6vh auto 0; }
+  .marquee { position:relative; padding:22px; border-radius:22px; background:var(--seat); box-shadow:0 18px 50px rgba(0,0,0,.45); }
+  .marquee::before, .marquee::after {
+    content:''; position:absolute; inset:7px; border-radius:16px;
+    background:radial-gradient(circle, var(--bulb) 0 3px, rgba(255,201,74,.25) 3.5px, transparent 6px) 0 0 / 20px 20px;
+  }
+  .marquee::after { background-position:10px 10px; animation:chase 1.1s steps(1) infinite; }
+  @keyframes chase { 50% { opacity:.15; } }
+  .marquee-inner { position:relative; z-index:1; background:var(--felt); border-radius:10px; padding:28px 20px 24px; text-align:center; }
+  .logo { margin:0; font:400 clamp(2.4rem, 11vw, 4.2rem)/1 var(--display); color:var(--bulb); text-shadow:0 0 18px rgba(255,201,74,.55); }
+  .tagline { margin:12px auto 0; max-width:30ch; color:var(--letter); }
+
+  .ticket {
+    margin-top:22px; padding:22px 30px; background:var(--ticket); color:#2A0A18; border-radius:12px;
+    -webkit-mask:radial-gradient(circle at 0 50%, transparent 13px, #000 13.5px) left / 51% 100% no-repeat,
+                 radial-gradient(circle at 100% 50%, transparent 13px, #000 13.5px) right / 51% 100% no-repeat;
+            mask:radial-gradient(circle at 0 50%, transparent 13px, #000 13.5px) left / 51% 100% no-repeat,
+                 radial-gradient(circle at 100% 50%, transparent 13px, #000 13.5px) right / 51% 100% no-repeat;
+  }
+  .ticket form { display:grid; gap:10px; }
+  .ticket label { font-weight:600; font-size:.9rem; }
+  .ticket input { background:#FFF5F7; border-color:transparent; color:#2A0A18; }
+  .ticket input::placeholder { color:#A0707E; }
+  .ticket button { background:#2A0A18; color:var(--bulb); margin-top:6px; }
+  .err { margin:10px 0 0; font-weight:600; color:#7A0B2A; }
+  .err:empty { display:none; }
+
+  /* ---------- Game layout ---------- */
+  header { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:20px; }
+  .brand { font:400 1.5rem/1 var(--display); color:var(--bulb); margin:0; }
+  .stub { display:flex; align-items:center; gap:14px; padding:8px 18px; background:var(--ticket); color:#2A0A18; border-radius:8px; border-left:3px dashed var(--velvet); }
+  .stub b { font:400 1.3rem/1 var(--display); letter-spacing:.06em; }
+  #timer { font:400 2rem/1 var(--display); color:var(--bulb); font-variant-numeric:tabular-nums; min-width:3ch; text-align:right; }
+  #timer.low { color:var(--ticket); }
+  #status { margin:-8px 0 18px; color:var(--muted); }
+
+  .grid { display:grid; grid-template-columns:minmax(0,1fr) 290px; gap:20px; align-items:start; }
+  @media (max-width:760px) { .grid { grid-template-columns:1fr; } }
+  .panel { background:var(--seat); border:1px solid var(--seat-line); border-radius:14px; padding:18px; margin-bottom:20px; }
+
+  /* ---------- The letterboard ---------- */
+  .board {
+    margin-bottom:20px; padding:22px 18px 18px; border-radius:6px; border:10px solid #3B2A22;
+    box-shadow:inset 0 0 0 2px #241913, 0 16px 40px rgba(0,0,0,.4);
+    background:repeating-linear-gradient(180deg, var(--felt) 0 40px, #0B090B 40px 44px);
+  }
+  .board-head { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px; color:var(--muted); font-size:.95rem; }
+  .board-head b { color:var(--bulb); }
+  #clues { list-style:none; margin:0; padding:0; min-height:88px; }
+  #clues li { display:flex; flex-wrap:wrap; gap:6px 10px; margin-bottom:4px; }
+  .tile {
+    font:700 clamp(1.4rem, 4.5vw, 2rem)/40px var(--board); text-transform:uppercase; letter-spacing:.08em;
+    color:var(--letter); text-shadow:0 2px 0 rgba(0,0,0,.6);
+  }
+  .new .tile { animation:drop .35s ease-out backwards; }
+  .new .tile:nth-child(2) { animation-delay:.06s; } .new .tile:nth-child(3) { animation-delay:.12s; }
+  .new .tile:nth-child(n+4) { animation-delay:.18s; }
+  @keyframes drop { from { transform:translateY(-14px); opacity:0; } }
+
+  /* ---------- Posters ---------- */
+  .poster { display:flex; gap:18px; align-items:center; }
+  .poster img { width:130px; flex:none; aspect-ratio:2/3; object-fit:cover; border-radius:6px; box-shadow:0 10px 24px rgba(0,0,0,.5); }
+  .film-title { font:700 clamp(1.6rem, 5vw, 2.2rem)/1.1 var(--board); margin:4px 0 8px; }
+  #reveal { border-color:var(--bulb); }
+  #reveal p { margin:0; }
+
+  /* ---------- Lobby ---------- */
+  #lobby form { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+  #lobby select { flex:1; min-width:140px; width:auto; }
+  #lobbyTitle { font:700 1.8rem/1.15 var(--board); color:var(--letter); margin:0 0 6px; }
+  .share { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+  .share code { padding:6px 10px; background:var(--felt); border-radius:6px; word-break:break-all; font:inherit; font-size:.9rem; }
+  .share button { padding:6px 12px; background:transparent; color:var(--bulb); border:1px solid var(--bulb); }
+
+  /* ---------- Players ---------- */
+  #players { list-style:none; margin:0; padding:0; counter-reset:rank; }
+  #players li { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--seat-line); counter-increment:rank; }
+  #players li:last-child { border-bottom:0; }
+  #players li::before { content:counter(rank); width:1.4em; color:var(--muted); font:400 .9rem var(--display); }
+  #players .name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #players .you .name { color:var(--bulb); font-weight:600; }
+  #players .score { font:700 1.25rem var(--board); }
+  #players .role { font-size:.8rem; padding:2px 8px; border-radius:99px; background:var(--good); color:#2A0A18; font-weight:600; }
+
+  /* ---------- Chat ---------- */
+  #chat { list-style:none; margin:0 0 12px; padding:0; height:220px; overflow-y:auto; font-size:.97rem; scrollbar-color:var(--seat-line) transparent; }
+  #chat li { padding:3px 0; }
+  #chat .who { font-weight:600; color:var(--bulb); }
+  #chat .info { color:var(--muted); }
+  #chat .good { color:var(--good); font-weight:600; }
+  #chat .bad { color:var(--ticket); }
+  #msgForm { display:flex; gap:8px; }
+  #msgForm input { flex:1; min-width:0; }
+  #msg:disabled { opacity:.6; }
+
+  @media (max-width:480px) {
+    .poster img { width:96px; }
+    #timer { font-size:1.6rem; }
+    .brand { display:none; }
+  }
+  @media (prefers-reduced-motion:reduce) {
+    *, *::before, *::after { animation:none !important; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <section id="join">
+    <div class="marquee"><div class="marquee-inner">
+      <h1 class="logo">Tebak Judul</h1>
+      <p class="tagline">Judul film diterjemahkan ke bahasa lain. Siapa paling cepat menebak judul aslinya?</p>
+    </div></div>
+    <div class="ticket">
+      <form id="joinForm">
+        <label for="name">Nama kamu</label>
+        <input id="name" maxlength="16" required autocomplete="off" placeholder="Misal: Dina">
+        <label for="code">Kode room</label>
+        <input id="code" maxlength="4" autocomplete="off" placeholder="Kosongkan untuk buat room baru">
+        <button id="joinBtn">Masuk ke studio</button>
+      </form>
+      <p class="err" id="err" role="alert"></p>
+    </div>
+  </section>
+
+  <section id="game" hidden>
+    <header>
+      <p class="brand">Tebak Judul</p>
+      <div class="stub"><span>Room</span><b id="roomCode"></b></div>
+      <div id="timer" aria-label="Sisa waktu"></div>
+    </header>
+    <p id="status"></p>
+
+    <div class="grid">
+      <div>
+        <div id="lobby" class="panel">
+          <p id="lobbyTitle"></p>
+          <p class="muted" id="lobbyHint"></p>
+          <div class="share">
+            <code id="shareLink"></code>
+            <button type="button" id="copyBtn">Salin link</button>
+          </div>
+          <form id="startForm">
+            <select id="theme" aria-label="Tema"></select>
+            <button id="startBtn">Mulai permainan</button>
+          </form>
+        </div>
+
+        <div id="boardWrap" class="board" hidden>
+          <div class="board-head"><span>Tebak judul aslinya</span><span id="boardCount"></span></div>
+          <ul id="clues" aria-live="polite"></ul>
+        </div>
+
+        <div id="reveal" class="panel">
+          <div class="poster">
+            <img id="revealImg" alt="Poster film">
+            <div>
+              <p class="muted" style="margin:0" id="revealClue"></p>
+              <p class="film-title" id="revealTitle"></p>
+              <p id="revealText"></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Tebakan dan obrolan</h2>
+          <ul id="chat" aria-live="polite"></ul>
+          <form id="msgForm"><input id="msg" maxlength="200" autocomplete="off" aria-label="Pesan"><button>Kirim</button></form>
+        </div>
+      </div>
+
+      <aside class="panel">
+        <h2>Papan skor</h2>
+        <ul id="players"></ul>
+      </aside>
+    </div>
+  </section>
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  const socket = io();
+  const $ = id => document.getElementById(id);
+  const make = (tag, cls, text) => Object.assign(document.createElement(tag), { className: cls || '', textContent: text ?? '' });
+  let myId = null, state = null, endsAt = 0, shownClue = null;
+
+  $('code').value = new URLSearchParams(location.search).get('room') || '';
+  if ($('code').value) $('joinBtn').textContent = 'Gabung ke room';
+
+  $('joinForm').onsubmit = e => {
+    e.preventDefault();
+    socket.emit('join', { name: $('name').value, code: $('code').value }, (err, res) => {
+      if (err) return ($('err').textContent = err);
+      myId = res.id;
+      history.replaceState(null, '', '?room=' + res.code);
+      $('join').hidden = true;
+      $('game').hidden = false;
+      $('msg').focus();
+    });
+  };
+  $('startForm').onsubmit = e => { e.preventDefault(); socket.emit('start', $('theme').value); };
+  $('msgForm').onsubmit = e => {
+    e.preventDefault();
+    socket.emit('msg', $('msg').value);
+    $('msg').value = '';
+  };
+  $('copyBtn').onclick = async () => {
+    try { await navigator.clipboard.writeText($('shareLink').textContent); $('copyBtn').textContent = 'Link disalin'; }
+    catch { $('copyBtn').textContent = 'Salin manual'; }
+    setTimeout(() => ($('copyBtn').textContent = 'Salin link'), 1800);
+  };
+
+  socket.on('state', s => {
+    state = s;
+    endsAt = s.round ? Date.now() + s.round.msLeft : 0;
+    render();
+  });
+  socket.on('chat', ({ text, kind, name }) => {
+    const li = make('li', kind);
+    if (name) li.append(make('span', 'who', name + ': '));
+    li.append(text);
+    const box = $('chat');
+    box.append(li);
+    box.scrollTop = box.scrollHeight;
+  });
+  socket.on('disconnect', () => { $('status').textContent = 'Koneksi terputus. Muat ulang halaman untuk masuk lagi.'; });
+
+  setInterval(() => {
+    const left = endsAt ? Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)) : null;
+    $('timer').textContent = left ?? '';
+    $('timer').classList.toggle('low', left !== null && left <= 10);
+  }, 250);
+
+  function setImg(img, src) {
+    img.hidden = !src;
+    img.onerror = () => (img.hidden = true);
+    if (src) img.src = src;
+  }
+
+  function render() {
+    const s = state;
+    const isHost = s.hostId === myId;
+    const solved = s.round?.solved ?? [];
+    const rankOf = id => solved.findIndex(x => x.id === id);
+    const iSolved = rankOf(myId) >= 0;
+    const ranked = [...s.players].sort((a, b) => b.score - a.score);
+
+    $('roomCode').textContent = s.code;
+    $('shareLink').textContent = `${location.origin}/?room=${s.code}`;
+    $('status').textContent = s.state === 'playing'
+      ? `Ronde ${s.turn} dari ${s.totalTurns}, tema ${s.theme}.`
+      : `${s.players.length} dari 8 kursi terisi.`;
+
+    $('players').replaceChildren(...ranked.map(p => {
+      const li = make('li', p.id === myId ? 'you' : '');
+      li.append(make('span', 'name', p.name + (p.id === s.hostId ? ' 👑' : '')));
+      if (rankOf(p.id) >= 0) li.append(make('span', 'role', `benar #${rankOf(p.id) + 1}`));
+      li.append(make('span', 'score', p.score));
+      return li;
+    }));
+
+    // Lobby / akhir permainan
+    $('lobby').hidden = s.state === 'playing';
+    $('lobbyTitle').textContent = s.state === 'end'
+      ? `${ranked[0].name} menang dengan ${ranked[0].score} poin 🏆`
+      : 'Studio sedang diisi penonton';
+    $('lobbyHint').textContent = !isHost ? 'Host akan memulai permainan.'
+      : s.players.length < 2 ? 'Bagikan link di bawah. Butuh minimal 2 pemain.'
+      : 'Pilih tema, lalu mulai.';
+    if ($('theme').options.length !== s.themes.length) $('theme').replaceChildren(...s.themes.map(t => new Option(t, t)));
+    if (!isHost) $('theme').value = s.theme;
+    $('theme').disabled = !isHost;
+    $('startBtn').disabled = !isHost || s.players.length < 2;
+    $('startBtn').textContent = s.state === 'end' ? 'Main lagi' : 'Mulai permainan';
+
+    $('reveal').hidden = !s.reveal;
+    if (s.reveal) {
+      setImg($('revealImg'), s.reveal.image);
+      $('revealClue').textContent = `"${s.reveal.clue}" adalah`;
+      $('revealTitle').textContent = s.reveal.title;
+      $('revealText').textContent = s.reveal.text;
+    }
+
+    // Papan huruf: judul terjemahan
+    $('boardWrap').hidden = !s.round;
+    const newClue = s.round && s.round.clue !== shownClue;
+    if (s.round) {
+      $('boardCount').replaceChildren(make('b', '', `${solved.length} dari ${s.players.length} sudah benar`));
+      if (newClue) {
+        const li = make('li', 'new');
+        li.append(...s.round.clue.split(/\s+/).map(w => make('span', 'tile', w)));
+        $('clues').replaceChildren(li);
+        shownClue = s.round.clue;
+      }
+    } else shownClue = null;
+
+    $('msg').disabled = iSolved;
+    $('msg').placeholder = !s.round ? 'Ketik pesan...' : iSolved ? 'Kamu sudah benar! Tunggu yang lain...' : 'Ketik judul aslinya...';
+    if (newClue) $('msg').focus();
+  }
+</script>
+</body>
+</html>
